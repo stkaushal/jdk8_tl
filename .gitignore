@@ -1,0 +1,5 @@
+common/makefiles/config.log
+build/
+.hg/
+.hgignore
+
