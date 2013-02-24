@@ -512,7 +512,7 @@ public class Types {
                 @Override
                 public Type getType(Type origin) {
                     Type mt = memberType(origin, getSymbol());
-                    return new MethodType(mt.getParameterTypes(), mt.getReturnType(), thrown1, syms.methodClass);
+                    return createMethodTypeWithThrown(mt, thrown1);
                 }
             };
         }
@@ -572,19 +572,34 @@ public class Types {
     }
 
     public Type removeWildcards(Type site) {
-        if (capture(site) != site) {
+        Type capturedSite = capture(site);
+        if (capturedSite != site) {
             Type formalInterface = site.tsym.type;
             ListBuffer<Type> typeargs = ListBuffer.lb();
             List<Type> actualTypeargs = site.getTypeArguments();
+            List<Type> capturedTypeargs = capturedSite.getTypeArguments();
             //simply replace the wildcards with its bound
             for (Type t : formalInterface.getTypeArguments()) {
                 if (actualTypeargs.head.hasTag(WILDCARD)) {
                     WildcardType wt = (WildcardType)actualTypeargs.head;
-                    typeargs.append(wt.type);
+                    Type bound;
+                    switch (wt.kind) {
+                        case EXTENDS:
+                        case UNBOUND:
+                            CapturedType capVar = (CapturedType)capturedTypeargs.head;
+                            //use declared bound if it doesn't depend on formal type-args
+                            bound = capVar.bound.containsAny(capturedSite.getTypeArguments()) ?
+                                    syms.objectType : capVar.bound;
+                            break;
+                        default:
+                            bound = wt.type;
+                    }
+                    typeargs.append(bound);
                 } else {
                     typeargs.append(actualTypeargs.head);
                 }
                 actualTypeargs = actualTypeargs.tail;
+                capturedTypeargs = capturedTypeargs.tail;
             }
             return subst(formalInterface, formalInterface.getTypeArguments(), typeargs.toList());
         } else {
